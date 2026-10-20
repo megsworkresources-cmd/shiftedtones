@@ -1,0 +1,17 @@
+{
+  "name": "ShiftedTone",
+  "short_name": "ShiftedTone",
+  "description": "Build a steadier, more thoughtful speaking tone.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f1e8",
+  "theme_color": "#111111",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
