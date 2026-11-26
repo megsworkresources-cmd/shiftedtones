@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getPreferredRecordingMimeType } from "@/lib/recording";
 import {
   analyzeFrames,
   detectPitch,
@@ -424,32 +425,48 @@ export function useToneCapture(): UseToneCapture {
         lastFrameAtRef.current = 0;
         setState("recording");
 
-        if ("MediaRecorder" in window) {
-          const mimeType = [
-            "audio/webm;codecs=opus",
-            "audio/webm",
-            "audio/mp4",
-          ].find((type) => MediaRecorder.isTypeSupported(type));
-          const recorder = mimeType
-            ? new MediaRecorder(stream, { mimeType })
-            : new MediaRecorder(stream);
-          recorderRef.current = recorder;
+        // Recording is an optional companion to live analysis. A browser that
+        // exposes getUserMedia but cannot construct/start MediaRecorder must
+        // still be able to complete the tone analysis.
+        try {
+          if ("MediaRecorder" in window) {
+            const mimeType = getPreferredRecordingMimeType(
+              MediaRecorder.isTypeSupported.bind(MediaRecorder),
+            );
+            const recorder = mimeType
+              ? new MediaRecorder(stream, { mimeType })
+              : new MediaRecorder(stream);
+            const takeChunks: BlobPart[] = [];
+            recorderRef.current = recorder;
+            audioChunksRef.current = takeChunks;
+            recorder.ondataavailable = (event) => {
+              if (event.data.size > 0) takeChunks.push(event.data);
+            };
+            recorder.onstop = () => {
+              // A reset/unmount invalidates this take. Keep chunks local to
+              // this recorder so cleanup cannot erase the final dataavailable
+              // event before the stop event assembles the playable Blob.
+              if (session !== sessionRef.current) return;
+              const blob = new Blob(takeChunks, {
+                type: recorder.mimeType || mimeType || "audio/webm",
+              });
+              if (blob.size > 0) {
+                const nextUrl = URL.createObjectURL(blob);
+                if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+                audioUrlRef.current = nextUrl;
+                setAudioUrl(nextUrl);
+              }
+              if (recorderRef.current === recorder) recorderRef.current = null;
+              if (audioChunksRef.current === takeChunks) audioChunksRef.current = [];
+            };
+            recorder.start(250);
+          }
+        } catch {
+          recorderRef.current = null;
           audioChunksRef.current = [];
-          recorder.ondataavailable = (event) => {
-            if (event.data.size > 0) audioChunksRef.current.push(event.data);
-          };
-          recorder.onstop = () => {
-            const blob = new Blob(audioChunksRef.current, {
-              type: recorder.mimeType || "audio/webm",
-            });
-            if (blob.size > 0) {
-              const nextUrl = URL.createObjectURL(blob);
-              if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-              audioUrlRef.current = nextUrl;
-              setAudioUrl(nextUrl);
-            }
-          };
-          recorder.start(250);
+          setError(
+            "Live tone analysis is available, but this browser couldn't create an audio playback recording.",
+          );
         }
 
         // Defensive: release any recognizer a previous take left behind —
