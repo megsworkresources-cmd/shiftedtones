@@ -103,15 +103,3 @@ export const store = internalMutation({
   },
 });
 
-/**
- * Dev/demo unlock — flips the paid flag for the signed-in user. Replace the
- * body with a real checkout verification (Stripe etc.) when wiring payments.
- */
-export const unlock = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Not authenticated");
-    await ctx.db.patch(user._id, { coachUnlocked: true });
-  },
-});
