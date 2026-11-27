@@ -6,7 +6,6 @@ import { getDrill, type Drill } from "@/lib/drills";
 import { UNLOCKABLE_DRILLS, isUnlocked, unlockGoalLine } from "@/lib/unlocks";
 import { getAccessibleDailyChallenge } from "@/lib/daily";
 import {
-  COUNTDOWN_SECONDS,
   PACE_BAR_CLASS,
   PACE_HINTS,
   pacePct,
@@ -136,32 +135,17 @@ function PracticeRunner({ drill, isDaily }: { drill: Drill; isDaily: boolean }) 
     "calm" | "energy" | "clarity" | "stability" | null
   >(null);
 
-  // Pre-roll countdown: hit Start, breathe for three beats, then the
-  // recorder actually opens. State lives here (UI choreography), the
-  // capture hook stays a pure clock. The hook object is unstable across
-  // renders, so the effect reads it through a ref — a mid-countdown
-  // re-render must never reset the ticking timer.
-  const [countdown, setCountdown] = useState<number | null>(null);
+  // Start capture directly from the user's tap. Delaying microphone and
+  // AudioContext startup behind a countdown can lose Safari's user-activation
+  // window, leaving the countdown complete but the recorder never starting.
   const captureRef = useRef(capture);
   useEffect(() => {
     captureRef.current = capture;
   }, [capture]);
   const beginCountdown = () => {
-    setCountdown(COUNTDOWN_SECONDS);
+    const c = captureRef.current;
+    void c.start(c.lastPeakRawRms, getSavedMicDeviceId());
   };
-  useEffect(() => {
-    if (countdown === null) return;
-    const t = window.setTimeout(() => {
-      if (countdown <= 1) {
-        setCountdown(null);
-        const c = captureRef.current;
-        c.start(c.lastPeakRawRms, getSavedMicDeviceId());
-        return;
-      }
-      setCountdown((c) => (c ?? 1) - 1);
-    }, 1000);
-    return () => window.clearTimeout(t);
-  }, [countdown]);
 
   // Space toggles record/stop — the desktop flow never leaves the keyboard.
   useEffect(() => {
@@ -171,12 +155,12 @@ function PracticeRunner({ drill, isDaily }: { drill: Drill; isDaily: boolean }) 
       if (el && ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(el.tagName)) return;
       e.preventDefault();
       const c = captureRef.current;
-      if (c.state === "idle" && countdown === null) beginCountdown();
+      if (c.state === "idle") beginCountdown();
       else if (c.state === "recording") c.stop();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [countdown]);
+  }, []);
 
   // Landing on the results: the reveal draws the eye to the verdict.
   const resultsRef = useRef<HTMLDivElement | null>(null);
@@ -251,29 +235,8 @@ function PracticeRunner({ drill, isDaily }: { drill: Drill; isDaily: boolean }) 
         {/* Recorder */}
         <NBPanel className="p-6">
           <div className="flex flex-col items-center gap-5">
-            {/* Pre-roll countdown overlay */}
-            {countdown !== null && state === "idle" && (
-              <div
-                className="flex h-24 w-full flex-col items-center justify-center"
-                aria-live="assertive"
-              >
-                <motion.span
-                  key={countdown}
-                  initial={{ scale: 0.4, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 18 }}
-                  className="nb flex size-16 items-center justify-center bg-sun font-display text-4xl nb-shadow"
-                >
-                  {countdown}
-                </motion.span>
-                <p className="mt-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Breathe in… speak on the exhale
-                </p>
-              </div>
-            )}
-
             {/* Live visualizer */}
-            {countdown === null && (
+            {(
               <div
                 className="flex h-24 w-full items-end justify-center gap-1"
                 aria-hidden
@@ -349,7 +312,7 @@ function PracticeRunner({ drill, isDaily }: { drill: Drill; isDaily: boolean }) 
               {state === "idle" && (
                 <NBButton
                   onClick={beginCountdown}
-                  disabled={countdown !== null}
+                  disabled={state !== "idle"}
                   variant="coral"
                 >
                   <Mic className="size-4" /> Start my take
