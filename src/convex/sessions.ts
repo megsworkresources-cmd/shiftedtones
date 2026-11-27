@@ -40,6 +40,7 @@ export const saveSession = mutation({
       )
       .unique();
 
+    const isPersonalBest = !existing || args.overallScore > existing.bestScore;
     if (existing) {
       await ctx.db.patch(existing._id, {
         bestScore: Math.max(existing.bestScore, args.overallScore),
@@ -52,6 +53,30 @@ export const saveSession = mutation({
         bestScore: args.overallScore,
         attemptCount: 1,
       });
+    }
+
+    // Award personal-best XP inside the same trusted server mutation as the
+    // saved take. Clients cannot call a generic "add XP" endpoint repeatedly.
+    if (isPersonalBest) {
+      const now = new Date();
+      const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dayNumber = Math.floor(localMidnight.getTime() / 86_400_000);
+      const dayDate = new Date(dayNumber * 86_400_000);
+      const day = `${dayDate.getFullYear()}-${dayDate.getMonth()}-${dayDate.getDate()}`;
+      const daily = await ctx.db
+        .query("dailyLog")
+        .withIndex("by_user_day", (q) => q.eq("userId", user._id).eq("day", day))
+        .unique();
+      if (daily) {
+        await ctx.db.patch(daily._id, { xpEarned: daily.xpEarned + 25 });
+      } else {
+        await ctx.db.insert("dailyLog", {
+          userId: user._id,
+          day,
+          completed: [],
+          xpEarned: 25,
+        });
+      }
     }
 
     return sessionId;
