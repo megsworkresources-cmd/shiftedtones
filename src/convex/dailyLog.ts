@@ -66,36 +66,6 @@ export const mark = mutation({
   },
 });
 
-/**
- * Add bonus XP outside the four actions (personal bests). Capped per call
- * so a client bug can't mint arbitrary XP; insert-only if today's row
- * doesn't exist yet.
- */
-export const addBonus = mutation({
-  args: { amount: v.number() },
-  handler: async (ctx, { amount }) => {
-    const user = await getCurrentUser(ctx);
-    if (!user)    throw new Error("Not authenticated");
-    const capped = Math.max(0, Math.min(60, Math.round(amount)));
-    if (capped === 0) return;
-
-    const day = localDayKey();
-    const row = await ctx.db
-      .query("dailyLog")
-      .withIndex("by_user_day", (q) => q.eq("userId", user._id).eq("day", day))
-      .unique();
-    if (row) {
-      await ctx.db.patch(row._id, { xpEarned: row.xpEarned + capped });
-    } else {
-      await ctx.db.insert("dailyLog", {
-        userId: user._id,
-        day,
-        completed: [],
-        xpEarned: capped,
-      });
-    }
-  },
-});
 
 /**
  * One Read-the-Room scenario answered. Counts toward the lifetime quiz

@@ -27,6 +27,24 @@ export const saveSession = mutation({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
 
+    if (!getDrill(args.drill)) throw new Error("Unknown practice drill");
+    const scores = [
+      args.calmScore,
+      args.energyScore,
+      args.clarityScore,
+      args.stabilityScore,
+      args.overallScore,
+    ];
+    if (scores.some((score) => score < 0 || score > 100)) {
+      throw new Error("Practice scores must be between 0 and 100");
+    }
+    if (args.durationMs < 0 || args.durationMs > 10 * 60 * 1000) {
+      throw new Error("Practice duration is outside the supported range");
+    }
+    if ((args.scenario?.length ?? 0) > 2000 || (args.transcript?.length ?? 0) > 10000) {
+      throw new Error("Practice text exceeds the supported length");
+    }
+
     const sessionId = await ctx.db.insert("practiceSessions", {
       userId: user._id,
       ...args,
@@ -40,6 +58,7 @@ export const saveSession = mutation({
       )
       .unique();
 
+    const isPersonalBest = !existing || args.overallScore > existing.bestScore;
     if (existing) {
       await ctx.db.patch(existing._id, {
         bestScore: Math.max(existing.bestScore, args.overallScore),
@@ -52,6 +71,30 @@ export const saveSession = mutation({
         bestScore: args.overallScore,
         attemptCount: 1,
       });
+    }
+
+    // Award personal-best XP inside the same trusted server mutation as the
+    // saved take. Clients cannot call a generic "add XP" endpoint repeatedly.
+    if (isPersonalBest) {
+      const now = new Date();
+      const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dayNumber = Math.floor(localMidnight.getTime() / 86_400_000);
+      const dayDate = new Date(dayNumber * 86_400_000);
+      const day = `${dayDate.getFullYear()}-${dayDate.getMonth()}-${dayDate.getDate()}`;
+      const daily = await ctx.db
+        .query("dailyLog")
+        .withIndex("by_user_day", (q) => q.eq("userId", user._id).eq("day", day))
+        .unique();
+      if (daily) {
+        await ctx.db.patch(daily._id, { xpEarned: daily.xpEarned + 25 });
+      } else {
+        await ctx.db.insert("dailyLog", {
+          userId: user._id,
+          day,
+          completed: [],
+          xpEarned: 25,
+        });
+      }
     }
 
     return sessionId;
