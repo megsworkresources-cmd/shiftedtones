@@ -116,8 +116,9 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
           </h2>
           <p className="mt-5 max-w-sm text-sm leading-relaxed text-paper/70">
             Sign in so your takes, streak, and reframes are here when you come
-            back. Your audio never leaves your device — we keep the scores, not
-            the recordings.
+            back. Microphone recordings stay in your browser. If you choose AI
+            coaching, your saved practice measurements and any transcript may
+            be sent to the configured AI service to generate feedback.
           </p>
           <div className="mt-8 flex items-center gap-3">
             <div className="flex h-10 items-end gap-1" aria-hidden>
