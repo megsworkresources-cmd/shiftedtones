@@ -674,7 +674,6 @@ function SaveRow({
 }) {
   const saveSession = useMutation(api.sessions.saveSession);
   const markTake = useMutation(api.dailyLog.mark);
-  const addBonus = useMutation(api.dailyLog.addBonus);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<Id<"practiceSessions"> | null>(null);
 
@@ -685,9 +684,6 @@ function SaveRow({
       try {
         await markTake({ action: "take" });
       } catch { /* checklist credit is best-effort */ }
-      if (analysis.overallScore >= (drillStats?.bestScore ?? 0)) {
-        addBonus({ amount: 25 }).catch(() => {});
-      }
       const sessionId = await saveSession({
         drill: drillId,
         durationMs: Math.round(elapsedMs),
