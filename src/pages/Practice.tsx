@@ -87,7 +87,7 @@ export default function Practice() {
       <AppShell>
         <div className="mx-auto max-w-3xl px-4 py-10">
           <NBPanel className="p-8 text-center">
-            <p className="text-sm text-muted-foreground">Loading drill…</p>
+            <p className="text-sm text-muted-foreground">Loading your drill…</p>
           </NBPanel>
         </div>
       </AppShell>
