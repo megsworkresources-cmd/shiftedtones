@@ -135,8 +135,6 @@ function PracticeRunner({ drill, isDaily }: { drill: Drill; isDaily: boolean }) 
   const [expandedFactor, setExpandedFactor] = useState<
     "calm" | "energy" | "clarity" | "stability" | null
   >(null);
-  const drillStats = useQuery(api.sessions.drillStats);
-  const bestByDrill = new Map((drillStats ?? []).map((s) => [s.drill, s]));
 
   // Pre-roll countdown: hit Start, breathe for three beats, then the
   // recorder actually opens. State lives here (UI choreography), the
@@ -624,7 +622,6 @@ function PracticeRunner({ drill, isDaily }: { drill: Drill; isDaily: boolean }) 
                 saved={saved}
                 onSaved={() => setSaved(true)}
                 onRetry={reset}
-                drillStats={bestByDrill.get(drill.id)}
               />
             </NBPanel>
           </div>
@@ -660,7 +657,6 @@ function SaveRow({
   saved,
   onSaved,
   onRetry,
-  drillStats,
 }: {
   analysis: ToneAnalysis;
   drillId: string;
@@ -670,7 +666,6 @@ function SaveRow({
   saved: boolean;
   onSaved: () => void;
   onRetry: () => void;
-  drillStats?: { bestScore: number; attemptCount: number };
 }) {
   const saveSession = useMutation(api.sessions.saveSession);
   const markTake = useMutation(api.dailyLog.mark);
