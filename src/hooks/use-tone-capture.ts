@@ -335,6 +335,13 @@ export function useToneCapture(): UseToneCapture {
             .webkitAudioContext;
         const ctx = new AudioCtx();
         ctxRef.current = ctx;
+        // iOS Safari may suspend a newly-created context unless resume() is
+        // requested during the original tap. Start that request immediately,
+        // before getUserMedia can display a permission prompt and consume the
+        // user-activation window. Await it after the stream is acquired.
+        const resumeContext = ctx.state === "running"
+          ? Promise.resolve()
+          : ctx.resume();
         // Honor the user's device pick from the MicPicker (exact — so the
         // browser can't silently substitute another input). A saved device
         // that has since been unplugged falls back to the default instead of
@@ -385,14 +392,16 @@ export function useToneCapture(): UseToneCapture {
         micMutedRef.current = track?.muted ?? false;
         setMicMuted(micMutedRef.current);
 
-        // Some browsers still park the context in "suspended" (Safari, or a
-        // permission prompt that ate the gesture) — nudge it to running.
+        // Finish the resume request that was initiated synchronously in the
+        // tap handler. Do not silently continue with a suspended analyser:
+        // that produces a live timer but zero microphone signal on iOS.
+        await resumeContext;
+        if (session !== sessionRef.current) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         if (ctx.state !== "running") {
-          await ctx.resume().catch(() => {});
-          if (session !== sessionRef.current) {
-            stream.getTracks().forEach((t) => t.stop());
-            return;
-          }
+          throw new Error("Audio context did not start");
         }
 
         const source = ctx.createMediaStreamSource(stream);
