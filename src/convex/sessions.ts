@@ -27,6 +27,24 @@ export const saveSession = mutation({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Not authenticated");
 
+    if (!getDrill(args.drill)) throw new Error("Unknown practice drill");
+    const scores = [
+      args.calmScore,
+      args.energyScore,
+      args.clarityScore,
+      args.stabilityScore,
+      args.overallScore,
+    ];
+    if (scores.some((score) => score < 0 || score > 100)) {
+      throw new Error("Practice scores must be between 0 and 100");
+    }
+    if (args.durationMs < 0 || args.durationMs > 10 * 60 * 1000) {
+      throw new Error("Practice duration is outside the supported range");
+    }
+    if ((args.scenario?.length ?? 0) > 2000 || (args.transcript?.length ?? 0) > 10000) {
+      throw new Error("Practice text exceeds the supported length");
+    }
+
     const sessionId = await ctx.db.insert("practiceSessions", {
       userId: user._id,
       ...args,
